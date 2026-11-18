@@ -4,346 +4,280 @@ const ctx = canvas.getContext("2d");
 
 const W = 720;
 const H = 1280;
-const DURATION = 20;
 const FPS = 30;
+const TOTAL = 20;
 
-let animationId = null;
-let recorder = null;
-let chunks = [];
-let recording = false;
+const clips = [
+  "videos/clip01.mp4",
+  "videos/clip02.mp4",
+  "videos/clip03.mp4"
+];
 
-const status = document.getElementById("status");
+const messages = [
+  ["DARK RIDER", "THE NIGHT BELONGS TO ME"],
+  ["FEAR NOTHING", "RIDE YOUR OWN WAY"],
+  ["LEGENDS DON'T FOLLOW", "THEY RULE."]
+];
+
 const previewBtn = document.getElementById("previewBtn");
 const exportBtn = document.getElementById("exportBtn");
+const status = document.getElementById("status");
 
-function background(t) {
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, "#080b12");
-  bg.addColorStop(0.55, "#17191d");
-  bg.addColorStop(1, "#020202");
+let videos = [];
+let raf = null;
+let busy = false;
 
-  ctx.fillStyle = bg;
+function createVideos() {
+  videos = clips.map(src => {
+    const v = document.createElement("video");
+    v.src = src;
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = "auto";
+    return v;
+  });
+
+  return Promise.all(
+    videos.map(v => new Promise((resolve, reject) => {
+      v.onloadedmetadata = resolve;
+      v.onerror = () => reject(new Error("Could not load " + v.src));
+    }))
+  );
+}
+
+function drawCover(video) {
+  if (!video.videoWidth) return;
+
+  const scale = Math.max(
+    W / video.videoWidth,
+    H / video.videoHeight
+  );
+
+  const sw = W / scale;
+  const sh = H / scale;
+
+  const sx = (video.videoWidth - sw) / 2;
+  const sy = (video.videoHeight - sh) / 2;
+
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, W, H);
+}
+
+function drawEffects(t, scene) {
+  // Dark cinematic grading
+  ctx.fillStyle = "rgba(0,0,0,0.34)";
   ctx.fillRect(0, 0, W, H);
 
   // Red cinematic light
   const glow = ctx.createRadialGradient(
-    360, 590, 10, 360, 590, 500
+    W / 2, H / 2, 50,
+    W / 2, H / 2, 700
   );
-  glow.addColorStop(0, "rgba(150,0,0,.3)");
-  glow.addColorStop(1, "rgba(0,0,0,0)");
+
+  glow.addColorStop(0, "rgba(100,0,0,0)");
+  glow.addColorStop(1, "rgba(0,0,0,0.65)");
 
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, H);
 
-  // Road
-  ctx.fillStyle = "#08090b";
-  ctx.fillRect(0, 850, W, 430);
+  // Film-style top and bottom bars
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, W, 100);
+  ctx.fillRect(0, H - 100, W, 100);
 
-  ctx.strokeStyle = "rgba(255,255,255,.12)";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, 970);
-  ctx.lineTo(W, 970);
-  ctx.stroke();
+  // Text animation
+  const fadeIn = Math.min(1, (t % 6.67) / 0.7);
+  const fadeOut = Math.min(1, (6.67 - (t % 6.67)) / 0.5);
+  const alpha = Math.max(0, Math.min(fadeIn, fadeOut));
 
-  // Road reflections
-  for (let i = 0; i < 14; i++) {
-    const x = (i * 83 + t * 45) % W;
-    ctx.fillStyle = "rgba(160,0,0,.12)";
-    ctx.fillRect(x, 900 + i * 18, 35, 3);
-  }
-}
-
-function rain(t) {
-  for (let i = 0; i < 115; i++) {
-    const x = (i * 97 + t * 180) % W;
-    const y = (i * 139 + t * 470) % H;
-
-    ctx.strokeStyle = "rgba(190,210,225,.25)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x - 12, y + 38);
-    ctx.stroke();
-  }
-}
-
-function wheel(x, y) {
   ctx.save();
-  ctx.translate(x, y);
-
-  ctx.strokeStyle = "#050505";
-  ctx.lineWidth = 24;
-  ctx.beginPath();
-  ctx.arc(0, 0, 100, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.strokeStyle = "#888";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.arc(0, 0, 83, 0, Math.PI * 2);
-  ctx.stroke();
-
-  ctx.strokeStyle = "#777";
-  ctx.lineWidth = 3;
-
-  for (let i = 0; i < 12; i++) {
-    const a = i * Math.PI / 6;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(a) * 82, Math.sin(a) * 82);
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = "#222";
-  ctx.beginPath();
-  ctx.arc(0, 0, 18, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
-}
-
-function motorcycle(t) {
-  ctx.save();
-
-  const zoom = 1 + Math.sin(t * .7) * .025;
-  ctx.translate(360, 750);
-  ctx.scale(zoom, zoom);
-  ctx.translate(-360, -750);
-
-  // Wheels
-  wheel(180, 800);
-  wheel(550, 800);
-
-  // Frame
-  ctx.strokeStyle = "#a00000";
-  ctx.lineWidth = 18;
-  ctx.lineCap = "round";
-
-  ctx.beginPath();
-  ctx.moveTo(180, 800);
-  ctx.lineTo(300, 640);
-  ctx.lineTo(460, 800);
-  ctx.lineTo(550, 800);
-  ctx.lineTo(410, 640);
-  ctx.stroke();
-
-  // Front fork
-  ctx.strokeStyle = "#999";
-  ctx.lineWidth = 14;
-  ctx.beginPath();
-  ctx.moveTo(480, 570);
-  ctx.lineTo(550, 800);
-  ctx.stroke();
-
-  // Engine
-  ctx.fillStyle = "#242424";
-  ctx.beginPath();
-  ctx.roundRect(285, 680, 170, 125, 24);
-  ctx.fill();
-
-  ctx.strokeStyle = "#666";
-  ctx.lineWidth = 5;
-  for (let i = 0; i < 4; i++) {
-    ctx.beginPath();
-    ctx.moveTo(310 + i * 30, 700);
-    ctx.lineTo(310 + i * 30, 780);
-    ctx.stroke();
-  }
-
-  // Fuel tank
-  const tank = ctx.createLinearGradient(280, 500, 440, 650);
-  tank.addColorStop(0, "#ff2727");
-  tank.addColorStop(0.5, "#720000");
-  tank.addColorStop(1, "#150000");
-
-  ctx.fillStyle = tank;
-  ctx.beginPath();
-  ctx.moveTo(260, 580);
-  ctx.quadraticCurveTo(280, 490, 390, 510);
-  ctx.quadraticCurveTo(465, 530, 450, 610);
-  ctx.lineTo(400, 670);
-  ctx.lineTo(300, 660);
-  ctx.closePath();
-  ctx.fill();
-
-  // Seat
-  ctx.fillStyle = "#080808";
-  ctx.beginPath();
-  ctx.moveTo(220, 570);
-  ctx.quadraticCurveTo(330, 520, 410, 555);
-  ctx.lineTo(390, 590);
-  ctx.lineTo(230, 600);
-  ctx.fill();
-
-  // Handle
-  ctx.strokeStyle = "#aaa";
-  ctx.lineWidth = 10;
-  ctx.beginPath();
-  ctx.moveTo(450, 550);
-  ctx.lineTo(510, 500);
-  ctx.lineTo(570, 515);
-  ctx.stroke();
-
-  // Headlight
-  ctx.fillStyle = "#fff4cc";
-  ctx.shadowColor = "#ff3030";
-  ctx.shadowBlur = 40;
-  ctx.beginPath();
-  ctx.arc(485, 570, 24, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // Tail light
-  ctx.fillStyle = "#ff1515";
-  ctx.shadowColor = "red";
-  ctx.shadowBlur = 25;
-  ctx.fillRect(205, 560, 28, 12);
-  ctx.shadowBlur = 0;
-
-  // Exhaust
-  ctx.strokeStyle = "#999";
-  ctx.lineWidth = 17;
-  ctx.beginPath();
-  ctx.moveTo(290, 750);
-  ctx.lineTo(210, 790);
-  ctx.stroke();
-
-  ctx.restore();
-}
-
-function text(t) {
+  ctx.globalAlpha = alpha;
   ctx.textAlign = "center";
 
-  let heading = "";
-  let subtitle = "";
-
-  if (t < 3) {
-    heading = "DARK RIDER";
-    subtitle = "THE NIGHT BELONGS TO ME";
-  } else if (t < 7) {
-    heading = "FEAR NOTHING";
-    subtitle = "RIDE YOUR OWN WAY";
-  } else if (t < 12) {
-    heading = "NO LIMITS";
-    subtitle = "NO RULES. JUST RIDE.";
-  } else if (t < 17) {
-    heading = "BORN TO RULE";
-    subtitle = "NOT MADE TO FOLLOW";
-  } else {
-    heading = "LEGENDS DON'T FOLLOW";
-    subtitle = "THEY RULE.";
-  }
-
-  const fade = Math.min(
-    1,
-    (t % 3) / .5,
-    (3 - (t % 3)) / .5
-  );
-
-  ctx.globalAlpha = Math.max(.4, fade);
-
-  ctx.font = "bold 49px Arial";
-  ctx.fillStyle = "#ffffff";
   ctx.shadowColor = "#ff0000";
-  ctx.shadowBlur = 18;
-  ctx.fillText(heading, 360, 280);
+  ctx.shadowBlur = 25;
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "900 48px Arial";
+
+  ctx.fillText(messages[scene][0], 360, 290);
 
   ctx.shadowBlur = 0;
-  ctx.font = "bold 17px Arial";
   ctx.fillStyle = "#ff3333";
-  ctx.fillText(subtitle, 360, 325);
-
-  ctx.globalAlpha = 1;
-}
-
-function render(t) {
-  background(t);
-  motorcycle(t);
-  rain(t);
-  text(t);
-
-  // Cinematic frame border
-  ctx.strokeStyle = "rgba(255,255,255,.2)";
-  ctx.lineWidth = 4;
-  ctx.strokeRect(18, 18, W - 36, H - 36);
-
-  // Watermark
   ctx.font = "bold 18px Arial";
-  ctx.fillStyle = "#777";
+
+  ctx.fillText(messages[scene][1], 360, 335);
+
+  ctx.restore();
+
+  // Small signature
   ctx.textAlign = "center";
-  ctx.fillText("DARK RIDER • ROYAL EDITION", 360, 1200);
+  ctx.font = "bold 18px Arial";
+  ctx.fillStyle = "#ddd";
+  ctx.fillText("DARK RIDER", 360, 1190);
 }
 
-function stopPreview() {
-  if (animationId) cancelAnimationFrame(animationId);
-  animationId = null;
+function drawFrame(elapsed) {
+  const segment = TOTAL / 3;
+  const scene = Math.min(2, Math.floor(elapsed / segment));
+  const localTime = elapsed - scene * segment;
+
+  const video = videos[scene];
+
+  if (!video) return;
+
+  if (video.readyState >= 2) {
+    drawCover(video);
+  } else {
+    ctx.fillStyle = "#080808";
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Slight cinematic zoom
+  ctx.save();
+  ctx.globalCompositeOperation = "source-atop";
+  drawEffects(elapsed, scene);
+  ctx.restore();
+
+  // Black transition at scene boundaries
+  const transition = 0.35;
+  const position = elapsed % segment;
+
+  let fade = 0;
+
+  if (scene > 0 && position < transition) {
+    fade = 1 - position / transition;
+  } else if (position > segment - transition) {
+    fade = (position - (segment - transition)) / transition;
+  }
+
+  if (fade > 0) {
+    ctx.fillStyle = `rgba(0,0,0,${fade})`;
+    ctx.fillRect(0, 0, W, H);
+  }
 }
 
-function preview() {
-  stopPreview();
+async function playClips() {
+  const segment = TOTAL / 3;
 
-  const start = performance.now();
+  for (let i = 0; i < videos.length; i++) {
+    const v = videos[i];
 
-  function frame(now) {
-    const t = Math.min((now - start) / 1000, DURATION);
-    render(t);
+    videos.forEach(other => {
+      if (other !== v) other.pause();
+    });
 
-    if (t < DURATION) {
-      animationId = requestAnimationFrame(frame);
-    } else {
-      animationId = null;
-      status.textContent = "PREVIEW COMPLETE";
+    v.currentTime = 0;
+    await v.play();
+
+    const start = performance.now();
+
+    while (performance.now() - start < segment * 1000) {
+      if (!busy) break;
+
+      const elapsed = i * segment +
+        (performance.now() - start) / 1000;
+
+      drawFrame(elapsed);
+
+      await new Promise(requestAnimationFrame);
     }
-  }
 
-  status.textContent = "PLAYING CINEMATIC REEL...";
-  animationId = requestAnimationFrame(frame);
+    v.pause();
+
+    if (!busy) break;
+  }
 }
 
-function exportVideo() {
-  if (recording) return;
+async function preview() {
+  try {
+    busy = true;
+    status.textContent = "PLAYING REAL FOOTAGE...";
 
-  if (!canvas.captureStream ||
-      typeof MediaRecorder === "undefined") {
-    status.textContent = "VIDEO EXPORT NOT SUPPORTED";
-    return;
+    await createVideos();
+    await playClips();
+
+    busy = false;
+    status.textContent = "PREVIEW COMPLETE";
+  } catch (error) {
+    busy = false;
+    status.textContent = "VIDEO ERROR: CHECK CLIP PATHS";
+    console.error(error);
   }
+}
 
-  stopPreview();
-
-  const stream = canvas.captureStream(FPS);
-  const mime = [
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/webm"
-  ].find(type => MediaRecorder.isTypeSupported(type));
-
-  if (!mime) {
-    status.textContent = "WEBM EXPORT NOT SUPPORTED";
-    return;
-  }
-
-  chunks = [];
+async function exportVideo() {
+  if (busy) return;
 
   try {
-    recorder = new MediaRecorder(stream, {
+    busy = true;
+    exportBtn.disabled = true;
+    status.textContent = "PREPARING VIDEO...";
+
+    await createVideos();
+
+    const stream = canvas.captureStream(FPS);
+
+    const mime = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm"
+    ].find(type => MediaRecorder.isTypeSupported(type));
+
+    if (!mime) throw new Error("WebM not supported");
+
+    const recorder = new MediaRecorder(stream, {
       mimeType: mime
     });
-  } catch (error) {
-    status.textContent = "EXPORT ERROR";
-    return;
-  }
 
-  recorder.ondataavailable = event => {
-    if (event.data.size > 0) chunks.push(event.data);
-  };
+    const chunks = [];
 
-  recorder.onstop = () => {
+    recorder.ondataavailable = e => {
+      if (e.data.size) chunks.push(e.data);
+    };
+
+    const finished = new Promise(resolve => {
+      recorder.onstop = resolve;
+    });
+
+    recorder.start();
+
+    const segment = TOTAL / 3;
+
+    for (let i = 0; i < 3; i++) {
+      const v = videos[i];
+
+      videos.forEach(other => {
+        if (other !== v) other.pause();
+      });
+
+      v.currentTime = 0;
+      await v.play();
+
+      const start = performance.now();
+
+      while (performance.now() - start < segment * 1000) {
+        const elapsed = i * segment +
+          (performance.now() - start) / 1000;
+
+        drawFrame(elapsed);
+
+        status.textContent =
+          "RENDERING " +
+          Math.floor(elapsed / TOTAL * 100) + "%";
+
+        await new Promise(requestAnimationFrame);
+      }
+
+      v.pause();
+    }
+
+    recorder.stop();
+    await finished;
+
     const blob = new Blob(chunks, { type: mime });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
 
+    const link = document.createElement("a");
     link.href = url;
     link.download = "DARK-RIDER-REEL.webm";
     link.click();
@@ -351,46 +285,27 @@ function exportVideo() {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
 
     stream.getTracks().forEach(track => track.stop());
-    recording = false;
+
+    status.textContent = "VIDEO EXPORTED SUCCESSFULLY!";
+  } catch (error) {
+    console.error(error);
+    status.textContent = "ERROR: " + error.message;
+  } finally {
+    busy = false;
     exportBtn.disabled = false;
-    exportBtn.textContent = "⬇ EXPORT VIDEO";
-    status.textContent = "VIDEO EXPORTED";
-  };
-
-  recorder.onerror = () => {
-    status.textContent = "RECORDING FAILED";
-    recording = false;
-    exportBtn.disabled = false;
-  };
-
-  recording = true;
-  exportBtn.disabled = true;
-  exportBtn.textContent = "RENDERING...";
-  status.textContent = "RENDERING 20 SECOND VIDEO...";
-
-  const start = performance.now();
-
-  recorder.start();
-
-  function frame(now) {
-    const t = Math.min((now - start) / 1000, DURATION);
-    render(t);
-
-    status.textContent =
-      "RENDERING " + Math.floor(t / DURATION * 100) + "%";
-
-    if (t < DURATION && recording) {
-      animationId = requestAnimationFrame(frame);
-    } else if (recording) {
-      stopPreview();
-      recorder.stop();
-    }
   }
-
-  animationId = requestAnimationFrame(frame);
 }
 
 previewBtn.addEventListener("click", preview);
 exportBtn.addEventListener("click", exportVideo);
 
-render(0);
+createVideos()
+  .then(() => {
+    drawFrame(0);
+    status.textContent = "3 REAL CLIPS LOADED";
+  })
+  .catch(error => {
+    status.textContent = "CHECK VIDEO FILE PATHS";
+    console.error(error);
+  });
+      0
