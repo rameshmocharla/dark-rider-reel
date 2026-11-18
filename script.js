@@ -8,9 +8,9 @@ const FPS = 30;
 const TOTAL = 20;
 
 const clips = [
-  "videos/clip01.mp4",
-  "videos/clip03.mp4",
-  "videos/clip02.mp4"
+  "videos/14608969_2160_3840_30fps.mp4",
+  "videos/15453823-uhd_2160_3840_50fps.mp4",
+  "videos/4922672-hd_1920_1080_30fps.mp4"
 ];
 
 const messages = [
