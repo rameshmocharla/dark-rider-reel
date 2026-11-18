@@ -9,8 +9,8 @@ const TOTAL = 20;
 
 const clips = [
   "videos/clip01.mp4",
-  "videos/clip02.mp4",
-  "videos/clip03.mp4"
+  "videos/clip03.mp4",
+  "videos/clip02.mp4"
 ];
 
 const messages = [
