@@ -1,0 +1,90 @@
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  background: #080808;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  padding: 25px 15px;
+}
+
+header {
+  margin-bottom: 22px;
+}
+
+header h1 {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 5px;
+  color: #fff;
+  text-shadow: 0 0 18px #e00000;
+}
+
+header p {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: #aaa;
+  margin-top: 8px;
+}
+
+.video-frame {
+  width: min(100%, 340px);
+  margin: auto;
+  border: 2px solid #333;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 0 30px #a0000030;
+  background: #000;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.controls {
+  width: min(100%, 340px);
+  margin: 22px auto;
+  display: grid;
+  gap: 14px;
+}
+
+button {
+  border: 1px solid #ff2020;
+  background: #160707;
+  color: white;
+  padding: 16px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+
+button:active {
+  transform: scale(.97);
+}
+
+#exportBtn {
+  background: #c00000;
+  box-shadow: 0 0 20px #e0000050;
+}
+
+#status {
+  color: #999;
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+
+@media (max-width: 380px) {
+  header h1 {
+    font-size: 27px;
+  }
+}
